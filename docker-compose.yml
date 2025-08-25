@@ -1,0 +1,43 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - ./backend/.env
+    environment:
+      # Ensure backend talks to the ollama container by default
+      OLLAMA_BASE_URL: http://ollama:11434
+      # Sensible defaults to avoid GPU memory issues
+      OLLAMA_FORCE_CPU: "${OLLAMA_FORCE_CPU:-true}"
+      TESSERACT_PATH: /usr/bin/tesseract
+    depends_on:
+      - ollama
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      # Browser must reach backend via host-mapped port
+      NEXT_PUBLIC_BACKEND_URL: "${NEXT_PUBLIC_BACKEND_URL:-http://localhost:8000}"
+      # Optionally tune Next.js memory or node opts here
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    command: ["npm", "run", "dev", "--", "-H", "0.0.0.0"]
+
+volumes:
+  ollama:
+    driver: local
